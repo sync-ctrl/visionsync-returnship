@@ -165,6 +165,17 @@ footer { padding-block: 34px 28px; display: flex; flex-wrap: wrap; justify-conte
   .note { padding: 26px 22px 24px 38px; }
   .note::before { left: 20px; }
 }
+.paysheet-bg { position: absolute; left: 0; top: 0; width: 100%; background: rgba(20,28,32,.55); z-index: 50; }
+.paysheet { position: absolute; left: 50%; transform: translateX(-50%); width: min(440px, calc(100% - 24px)); background: var(--card, #fff); color: var(--ink); border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.3); padding: 26px 22px 22px; z-index: 51; text-align: center; }
+.paysheet .x { position: absolute; right: 10px; top: 8px; border: 0; background: none; font-size: 26px; line-height: 1; cursor: pointer; color: var(--ink-soft); padding: 6px; }
+.paysheet h3 { font: 800 24px/1.15 var(--display); margin: 4px 0 2px; }
+.paysheet .amt { font: 900 34px/1 var(--display); color: var(--key); margin: 6px 0 12px; }
+.paysheet img { width: 170px; max-width: 60%; height: auto; display: block; margin: 0 auto 12px; }
+.paysheet .row { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.paysheet code { font-size: 16px; font-weight: 600; }
+.paysheet ol { text-align: left; margin: 10px 0 16px; padding-left: 20px; font-size: 15px; line-height: 1.45; }
+.paysheet .btn { width: 100%; justify-content: center; }
+.paysheet small { display: block; font-size: 13px; color: var(--ink-soft); margin-top: 10px; }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
 </style>
 
@@ -306,6 +317,45 @@ footer { padding-block: 34px 28px; display: flex; flex-wrap: wrap; justify-conte
       const select = () => { const r = document.createRange(); r.selectNodeContents(code); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); btn.textContent = "Selected"; setTimeout(() => btn.textContent = "Copy", 1800); };
       try { navigator.clipboard.writeText(code.textContent.trim()).then(done, select); } catch (e) { select(); }
     });
+
+    // Reserve buttons: inside an embed (e.g. Wix) the page cannot scroll its host,
+    // so show the payment card right where the visitor tapped.
+    const embedded = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+    const qrSrc = (document.querySelector(".stub img") || {}).src || "";
+    const upiId = code.textContent.trim();
+    const FORM = "https://forms.gle/HQ85iMFiLww6wQM8A";
+    function closeSheet() { document.querySelectorAll(".paysheet, .paysheet-bg").forEach(n => n.remove()); }
+    function openSheet(trigger) {
+      closeSheet();
+      const bg = document.createElement("div"); bg.className = "paysheet-bg";
+      bg.style.height = document.documentElement.scrollHeight + "px";
+      bg.addEventListener("click", closeSheet);
+      const sh = document.createElement("div"); sh.className = "paysheet"; sh.setAttribute("role", "dialog"); sh.setAttribute("aria-label", "Reserve your seat");
+      sh.innerHTML = `<button type="button" class="x" aria-label="Close">×</button>
+        <div class="eyebrow">Reserve your seat</div>
+        <h3>Returnship · Sat 31 Oct, 11 AM IST</h3>
+        <div class="amt">₹999</div>
+        ${qrSrc ? `<img src="${qrSrc}" alt="UPI QR code to pay Envizonsync Services Private Limited">` : ""}
+        <div class="row"><span class="lbl">UPI ID</span><code>${upiId}</code><button type="button" class="copy">Copy</button></div>
+        <ol><li>Scan the QR or pay to the UPI ID from any UPI app.</li><li>Pay ₹999. Note the transaction reference (UTR).</li><li>Fill in the form with your details and the UTR. We'll email your joining link.</li></ol>
+        <a class="btn" href="${FORM}" target="_blank" rel="noopener">Register after paying</a>
+        <small>Payee shows as Envizonsync Services Private Limited.</small>`;
+      const r = trigger.getBoundingClientRect();
+      const top = Math.max(12, r.top + window.scrollY - 140);
+      sh.style.top = Math.min(top, document.documentElement.scrollHeight - 760) + "px";
+      sh.querySelector(".x").addEventListener("click", closeSheet);
+      const cb = sh.querySelector(".copy");
+      cb.addEventListener("click", () => {
+        const ok = () => { cb.textContent = "Copied"; setTimeout(() => cb.textContent = "Copy", 1800); };
+        try { navigator.clipboard.writeText(upiId).then(ok, () => { cb.textContent = upiId; }); } catch (e) { cb.textContent = upiId; }
+      });
+      document.body.append(bg, sh);
+    }
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+    document.querySelectorAll('a[href="#register"]').forEach(a => a.addEventListener("click", e => {
+      if (!embedded) return; // normal jump works on the standalone page
+      e.preventDefault(); openSheet(a);
+    }));
 
     // 31 Oct 2026, 11:00 IST = 05:30 UTC
     const start = Date.UTC(2026, 9, 31, 5, 30);
